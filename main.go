@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -26,6 +27,10 @@ func main() {
 }
 
 func verifyTicker(ticker string) bool {
+	/*
+		We need to ensure that people are giving us a
+		valid ticker (based on format)
+	*/
 	match, _ := regexp.Match(`\w{2,6}`, []byte(ticker))
 	if match {
 		return true
@@ -34,8 +39,10 @@ func verifyTicker(ticker string) bool {
 }
 
 func handleFlags() string {
-	//We need to get information from the user about which stock
-	//they want to scrape
+	/*
+		We need to get information from the user about which stock
+		they want to scrape
+	*/
 	ticker := flag.String("ticker", "", "The ticker to look up")
 	flag.Parse()
 	return *ticker
@@ -45,6 +52,7 @@ func setupTLS() *tls.Config {
 	/*
 		Sets up TLS with reasonably strong parameters
 	*/
+
 	config := tls.Config{
 		InsecureSkipVerify: false,
 		CipherSuites: []uint16{
@@ -66,6 +74,12 @@ func setupTLS() *tls.Config {
 }
 
 func getPriceInformation(ticker string) string {
+	/*
+		Retrieves the price information from yahoo
+
+		Returns:
+			String of the html response
+	*/
 	templateUrl := "https://finance.yahoo.com/quote/%s?p=%s&.tsrc=fin-srch"
 	finishedUrl := fmt.Sprintf(templateUrl, ticker, ticker)
 
@@ -83,11 +97,17 @@ func getPriceInformation(ticker string) string {
 	defer response.Body.Close()
 
 	content, _ := ioutil.ReadAll(response.Body)
-	//fmt.Println(string(content))
 	return string(content)
 }
 
 func findPriceFromHTML(response string, ticker string) float64 {
+	/*
+		Processes the HTML and returns the price information
+
+		Return:
+			float64 the price of the stock
+	*/
+	price := 0.0
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader((response)))
 	if err != nil {
 		fmt.Printf("Error creating the document %s", err)
@@ -97,10 +117,11 @@ func findPriceFromHTML(response string, ticker string) float64 {
 	doc.Find(selector).Each(func(i int, s *goquery.Selection) {
 		value, _ := s.Attr("data-field")
 		if value == "regularMarketPrice" {
+			priceString, _ := s.Attr("value")
+			price, _ = strconv.ParseFloat(priceString, 64)
 			fmt.Println(s.Attr("value"))
 		}
 
 	})
-	//fmt.Printf(price)
-	return 0.0
+	return price
 }
